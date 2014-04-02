@@ -53,7 +53,11 @@ public class CrawlerSessionManagerValve extends ValveBase
 
     private String crawlerUserAgents =
         ".*[bB]ot.*|.*Yahoo! Slurp.*|.*Feedfetcher-Google.*";
+
+    private String crawlerIps = null;
+
     private Pattern uaPattern = null;
+    private Pattern ipPattern = null;
     private int sessionInactiveInterval = 60;
 
 
@@ -87,6 +91,30 @@ public class CrawlerSessionManagerValve extends ValveBase
      */
     public String getCrawlerUserAgents() {
         return crawlerUserAgents;
+    }
+
+    /**
+     * Specify the regular expression (using {@link Pattern}) that will be used
+     * to identify crawlers based on their ip address. The default is no crawler ips
+     *
+     * @param crawlerIps The regular expression using {@link Pattern}
+     */
+    public void setCrawlerIps(String crawlerIps) {
+        this.crawlerIps = crawlerIps;
+        if (crawlerIps == null || crawlerIps.length() == 0) {
+            ipPattern = null;
+        } else {
+            ipPattern = Pattern.compile(crawlerIps);
+        }
+    }
+
+
+    /**
+     * @see #setCrawlerIps(String)
+     * @return  The current regular expression being used to match ip addresses.
+     */
+    public String getCrawlerIps() {
+        return crawlerIps;
     }
 
 
@@ -128,7 +156,7 @@ public class CrawlerSessionManagerValve extends ValveBase
 
         boolean isBot = false;
         String sessionId = null;
-        String clientIp = null;
+        String clientIp = request.getRemoteAddr();
 
         if (log.isDebugEnabled()) {
             log.debug(request.hashCode() + ": ClientIp=" +
@@ -163,9 +191,17 @@ public class CrawlerSessionManagerValve extends ValveBase
                 }
             }
 
+            if(ipPattern != null && ipPattern.matcher(clientIp).matches()) {
+                isBot = true;
+
+                if (log.isDebugEnabled()) {
+                    log.debug(request.hashCode() +
+                            ": Bot found. Ip=" + clientIp);
+                }
+            }
+
             // If this is a bot, is the session ID known?
             if (isBot) {
-                clientIp = request.getRemoteAddr();
                 sessionId = clientIpSessionId.get(clientIp);
                 if (sessionId != null) {
                     request.setRequestedSessionId(sessionId);
